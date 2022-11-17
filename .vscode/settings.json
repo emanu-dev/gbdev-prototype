@@ -3,7 +3,10 @@
         "stdio.h": "c",
         "windowmap.h": "c",
         "blocktile.h": "c",
-        "topdown.h": "c"
+        "topdown.h": "c",
+        "smilersprites.h": "c",
+        "stdlib.h": "c",
+        "simplebackground.h": "c"
     },
     "C_Cpp.errorSquiggles": "Disabled"
 }

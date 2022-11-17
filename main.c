@@ -115,42 +115,62 @@ UINT8 initPlayer(void)
 	return 0;
 }
 
-UINT8 setInitialText(void)
+unsigned char *textToTiles(char *ch)
 {
-	char text[10] = "HELLO"; // string a
 
+	unsigned char r[10];
 	UINT8 i;
-	for (i = 0; i < 10; i++)
+
+	for (i = 0; i < 10; ++i)
 	{
-		if (text[i])
+
+		switch (ch[i])
 		{
-			text[i] = text[i] - 54;
+		case '0':
+			r[i] = 1;
+			break;
+		case '1':
+			r[i] = 2;
+			break;
+		case '2':
+			r[i] = 3;
+			break;
+		case '3':
+			r[i] = 4;
+			break;
+		case '4':
+			r[i] = 5;
+			break;
+		case '5':
+			r[i] = 6;
+			break;
+		case '6':
+			r[i] = 7;
+			break;
+		case '7':
+			r[i] = 8;
+			break;
+		case '8':
+			r[i] = 9;
+			break;
+		case '9':
+			r[i] = 10;
+			break;
+		default:
+			if (ch[i] - 54 > 36 || ch[i] - 54 < 0)
+			{
+				r[i] = 0;
+			}
+			else
+			{
+				r[i] = ch[i] - 54;
+			}
+			break;
 		}
 	}
 
-	unsigned char *text_map_hello = (unsigned char *)text;
-	set_win_tiles(1, 0, 10, 1, text_map_hello);
-
-	return 0;
-}
-
-UINT8 setPausedText(void)
-{
-	char text[10] = "PAUSED"; // string a
-
-	UINT8 i;
-	for (i = 0; i < 10; i++)
-	{
-		if (text[i])
-		{
-			text[i] = text[i] - 54;
-		}
-	}
-
-	unsigned char *text_map_hello = (unsigned char *)text;
-	set_win_tiles(1, 0, 10, 1, text_map_hello);
-
-	return 0;
+	unsigned char *tiled_text = (unsigned char *)r;
+	return tiled_text;
 }
 
 UINT8 init(void)
@@ -166,7 +186,7 @@ UINT8 init(void)
 	font_set(min_font);
 
 	// HUD initialization
-	setInitialText();
+	set_win_tiles(1, 0, 10, 1, textToTiles("HELLO12345"));
 	move_win(7, 136);
 
 	// Sound
@@ -200,7 +220,7 @@ UINT8 main(void)
 			switch (joypad())
 			{
 			case J_START:
-				setInitialText();
+				set_win_tiles(1, 0, 10, 1, textToTiles("HELLO12345"));
 				gameManager.game_is_paused = 0;
 				break;
 			}
@@ -213,7 +233,7 @@ UINT8 main(void)
 			{
 			case J_START:
 				gameManager.game_is_paused = 1;
-				setPausedText();
+				set_win_tiles(1, 0, 10, 1, textToTiles("PAUSED"));
 				break;
 			case J_LEFT:
 				playerCharacter.scrolling_x = playerCharacter.SPEED_X * -1;
