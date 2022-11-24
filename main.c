@@ -24,12 +24,15 @@ typedef struct GameManager
 {
 	BYTE game_is_running;
 	BYTE game_is_paused;
+	UINT8 inv_keys;
+	UINT8 lives;
 } GameManager;
 
 PlayerCharacter playerCharacter;
 GameManager gameManager;
 
 // constants
+// TODO: move this to a constant
 const unsigned char BLANK_MAP[1] = {0x00};
 
 UINT8 initSound(void)
@@ -123,43 +126,42 @@ unsigned char *textToTiles(char *ch)
 
 	for (i = 0; i < 10; ++i)
 	{
-
 		switch (ch[i])
 		{
 		case '0':
-			r[i] = 1;
+			r[i] = 0x01;
 			break;
 		case '1':
-			r[i] = 2;
+			r[i] = 0x02;
 			break;
 		case '2':
-			r[i] = 3;
+			r[i] = 0x03;
 			break;
 		case '3':
-			r[i] = 4;
+			r[i] = 0x04;
 			break;
 		case '4':
-			r[i] = 5;
+			r[i] = 0x05;
 			break;
 		case '5':
-			r[i] = 6;
+			r[i] = 0x06;
 			break;
 		case '6':
-			r[i] = 7;
+			r[i] = 0x07;
 			break;
 		case '7':
-			r[i] = 8;
+			r[i] = 0x08;
 			break;
 		case '8':
-			r[i] = 9;
+			r[i] = 0x09;
 			break;
 		case '9':
-			r[i] = 10;
+			r[i] = 0x0A;
 			break;
 		default:
 			if (ch[i] - 54 > 36 || ch[i] - 54 < 0)
 			{
-				r[i] = 0;
+				r[i] = 0x00;
 			}
 			else
 			{
@@ -176,17 +178,18 @@ unsigned char *textToTiles(char *ch)
 UINT8 init(void)
 {
 
-	// unsigned char text_map[] = {0x12, 0x0F, 0x16, 0x16, 0x19};
-	// unsigned char text_map_hello[] = {'H', 'E', 'L', 'L', 'O'};
-
 	// font initialization
 	font_t min_font;
 	font_init();
 	min_font = font_load(font_min);
 	font_set(min_font);
 
+	gameManager.inv_keys = 0;
+
 	// HUD initialization
-	set_win_tiles(1, 0, 10, 1, textToTiles("HELLO12345"));
+	set_win_tiles(1, 0, 6, 1, textToTiles("LVL 01"));
+	UINT8 inventory[3] = {0x28, 0x22, gameManager.inv_keys + 3};
+	set_win_tiles(15, 0, 3, 1, inventory);
 	move_win(7, 136);
 
 	// Sound
@@ -197,8 +200,6 @@ UINT8 init(void)
 	// Background
 	set_bkg_data(37, 4, BlockTile);
 	set_bkg_tiles(0, 0, 20, 18, TopDown);
-	// set_bkg_data(37, 7, backgroundtiles);
-	// set_bkg_tiles(0, 0, 40, 18, backgroundmap);
 
 	SHOW_BKG;
 	SHOW_SPRITES;
@@ -220,7 +221,8 @@ UINT8 main(void)
 			switch (joypad())
 			{
 			case J_START:
-				set_win_tiles(1, 0, 10, 1, textToTiles("HELLO12345"));
+				waitpadup();
+				set_win_tiles(1, 0, 6, 1, textToTiles("LVL 01"));
 				gameManager.game_is_paused = 0;
 				break;
 			}
@@ -232,8 +234,9 @@ UINT8 main(void)
 			switch (joypad())
 			{
 			case J_START:
+				waitpadup();
 				gameManager.game_is_paused = 1;
-				set_win_tiles(1, 0, 10, 1, textToTiles("PAUSED"));
+				set_win_tiles(1, 0, 6, 1, textToTiles("PAUSED"));
 				break;
 			case J_LEFT:
 				playerCharacter.scrolling_x = playerCharacter.SPEED_X * -1;
@@ -255,9 +258,11 @@ UINT8 main(void)
 				playerCharacter.y += playerCharacter.scrolling_y;
 				interpolateMoveSprite(playerCharacter.sprite_id, playerCharacter.scrolling_x, playerCharacter.scrolling_y, playerCharacter.INTERPOLATION_SPD);
 			}
+			delay(100);
 		}
 
-		performantDelay(6);
+		wait_vbl_done();
+		// performantDelay(6);
 	}
 
 	return 0;
