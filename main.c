@@ -8,6 +8,17 @@
 #include "BlockTile.h"
 #include "windowmap.h"
 
+#define MAX(a, b) ((a) > (b) ? (a) : (b))
+#define MIN(a, b) ((a) < (b) ? (a) : (b))
+
+typedef enum NextTileType
+{
+	FLOOR = 0,
+	WALL = 1,
+	DOOR = 2,
+	KEY = 3
+} NextTileType;
+
 typedef struct PlayerCharacter
 {
 	UINT8 sprite_id;
@@ -18,13 +29,14 @@ typedef struct PlayerCharacter
 	INT16 y;
 	INT8 scrolling_x;
 	INT8 scrolling_y;
+	NextTileType nextTileType;
 } PlayerCharacter;
 
 typedef struct GameManager
 {
 	BYTE game_is_running;
 	BYTE game_is_paused;
-	UINT8 inv_keys;
+	UINT8 inventoryKeys;
 	UINT8 lives;
 } GameManager;
 
@@ -33,7 +45,14 @@ GameManager gameManager;
 
 // constants
 // TODO: move this to a constant
-const unsigned char BLANK_MAP[1] = {0x00};
+const unsigned char TILE_MAP[4] = {
+		0x00, // floor
+		0x26, // wall
+		0x27, // door
+		0x28	// key
+};
+
+const char blankTile[1] = {0x00};
 
 UINT8 initSound(void)
 {
@@ -66,19 +85,34 @@ UINT8 performantDelay(UINT8 loop_count)
 	return 0;
 }
 
-UBYTE canPlayerMove(UINT8 new_pos_x, UINT8 new_pos_y)
+UBYTE debug = 0;
+
+NextTileType checkNextTile(UINT8 newPositionX, UINT8 newPositionY)
 {
+	UINT16 indexTopLeftX, indexTopLeftY, tileIndexTopLeft;
 
-	UINT16 index_top_left_x, index_top_left_y, tile_index_top_left;
-	UBYTE can_move;
+	indexTopLeftX = (newPositionX - 8) / 8;
+	indexTopLeftY = (newPositionY - 16) / 8;
+	tileIndexTopLeft = 20 * indexTopLeftY + indexTopLeftX;
 
-	index_top_left_x = (new_pos_x - 8) / 8;
-	index_top_left_y = (new_pos_y - 16) / 8;
-	tile_index_top_left = 20 * index_top_left_y + index_top_left_x;
+	if (TopDown[tileIndexTopLeft] == TILE_MAP[0])
+	{
+		return FLOOR; // regular floor, walk normally
+	}
+	else if (TopDown[tileIndexTopLeft] == TILE_MAP[1])
+	{
+		return WALL; // wall, cannot walk through
+	}
+	else if (TopDown[tileIndexTopLeft] == TILE_MAP[2])
+	{
+		return DOOR; // door, cannot walk through, except with key
+	}
+	else if (TopDown[tileIndexTopLeft] == TILE_MAP[3])
+	{
+		return KEY; // key, walk through and add to inventory
+	}
 
-	can_move = TopDown[tile_index_top_left] == BLANK_MAP[0];
-
-	return can_move;
+	return WALL; // wall, cannot walk through
 }
 
 UINT8 interpolateMoveSprite(UINT8 sprite_id, INT8 move_x, INT8 move_y, UINT8 speed)
@@ -109,12 +143,22 @@ UINT8 initPlayer(void)
 	playerCharacter.y = 24;
 	playerCharacter.SPEED_X = 8;
 	playerCharacter.SPEED_Y = 8;
-	playerCharacter.INTERPOLATION_SPD = 2;
+	playerCharacter.INTERPOLATION_SPD = 4;
 
 	set_sprite_data(playerCharacter.sprite_id, 2, Smiler);
 	set_sprite_tile(0, 0);
 	move_sprite(playerCharacter.sprite_id, playerCharacter.x, playerCharacter.y);
 
+	return 0;
+}
+
+UINT8 updateKeysInventory(UINT8 value)
+{
+	gameManager.inventoryKeys = value;
+
+	// update hud
+	UINT8 inventory[3] = {0x28, 0x22, gameManager.inventoryKeys + 1};
+	set_win_tiles(15, 0, 3, 1, inventory);
 	return 0;
 }
 
@@ -177,19 +221,15 @@ unsigned char *textToTiles(char *ch)
 
 UINT8 init(void)
 {
-
 	// font initialization
 	font_t min_font;
 	font_init();
 	min_font = font_load(font_min);
 	font_set(min_font);
 
-	gameManager.inv_keys = 0;
-
 	// HUD initialization
 	set_win_tiles(1, 0, 6, 1, textToTiles("LVL 01"));
-	UINT8 inventory[3] = {0x28, 0x22, gameManager.inv_keys + 3};
-	set_win_tiles(15, 0, 3, 1, inventory);
+	updateKeysInventory(0);
 	move_win(7, 136);
 
 	// Sound
@@ -212,6 +252,8 @@ UINT8 init(void)
 UINT8 main(void)
 {
 	init();
+	// TODO: remove this, and make the key work somehow
+	UBYTE hasGotTheDamnKey = 0;
 	gameManager.game_is_running = 1;
 
 	while (gameManager.game_is_running)
@@ -250,19 +292,57 @@ UINT8 main(void)
 			case J_DOWN:
 				playerCharacter.scrolling_y = playerCharacter.SPEED_Y;
 				break;
+			case J_SELECT:
+				if (debug == 1)
+				{
+					debug = 0;
+				}
+				else
+				{
+					debug = 1;
+				}
+				break;
 			}
 
-			if (canPlayerMove(playerCharacter.x + playerCharacter.scrolling_x, playerCharacter.y + playerCharacter.scrolling_y))
+			playerCharacter.nextTileType = checkNextTile(playerCharacter.x + playerCharacter.scrolling_x, playerCharacter.y + playerCharacter.scrolling_y);
+
+			if (debug == 1)
 			{
+				printf("%u %u\n", (UINT16)(playerCharacter.x + playerCharacter.scrolling_x), (UINT16)(playerCharacter.y + playerCharacter.scrolling_y));
+			}
+
+			if (playerCharacter.nextTileType != WALL)
+			{
+				if (playerCharacter.nextTileType == KEY && hasGotTheDamnKey == 0)
+				{
+					// TODO: remove this!
+					hasGotTheDamnKey = 1;
+					playerCharacter.nextTileType = WALL;
+					updateKeysInventory(gameManager.inventoryKeys + 1);
+					playSound();
+					// TODO: improve this calculation
+					set_bkg_tiles(((playerCharacter.x + playerCharacter.scrolling_x) - 8) / 8, (playerCharacter.y + playerCharacter.scrolling_y) / 24, 1, 1, blankTile);
+				}
+
+				// if (gameManager.inventoryKeys <= 0 && playerCharacter.nextTileType == DOOR)
+				// {
+				// 	playerCharacter.nextTileType = WALL;
+				// 	break;
+				// }
+				// else if (playerCharacter.nextTileType == DOOR)
+				// {
+				// 	updateKeysInventory(MIN(gameManager.inventoryKeys - 1, 0));
+				// 	playerCharacter.nextTileType = WALL;
+				// }
+
 				playerCharacter.x += playerCharacter.scrolling_x;
 				playerCharacter.y += playerCharacter.scrolling_y;
 				interpolateMoveSprite(playerCharacter.sprite_id, playerCharacter.scrolling_x, playerCharacter.scrolling_y, playerCharacter.INTERPOLATION_SPD);
 			}
-			delay(100);
 		}
 
-		wait_vbl_done();
-		// performantDelay(6);
+		// wait_vbl_done();
+		performantDelay(5);
 	}
 
 	return 0;
