@@ -40,11 +40,18 @@ typedef struct GameManager
 	UINT8 lives;
 } GameManager;
 
+typedef struct Key
+{
+	UBYTE got;
+	INT16 x;
+	INT16 y;
+} Key;
+
 PlayerCharacter playerCharacter;
 GameManager gameManager;
+Key keysOnLevel[4] = {{.got = 0, .x = 18, .y = 1}, {.got = 0, .x = 0, .y = 0}, {.got = 0, .x = 0, .y = 0}, {.got = 0, .x = 0, .y = 0}};
 
 // constants
-// TODO: move this to a constant
 const unsigned char TILE_MAP[4] = {
 		0x00, // floor
 		0x26, // wall
@@ -53,6 +60,7 @@ const unsigned char TILE_MAP[4] = {
 };
 
 const char blankTile[1] = {0x00};
+const char keyTile[1] = {0x28};
 
 UINT8 initSound(void)
 {
@@ -159,6 +167,7 @@ UINT8 updateKeysInventory(UINT8 value)
 	// update hud
 	UINT8 inventory[3] = {0x28, 0x22, gameManager.inventoryKeys + 1};
 	set_win_tiles(15, 0, 3, 1, inventory);
+	playSound();
 	return 0;
 }
 
@@ -219,6 +228,46 @@ unsigned char *textToTiles(char *ch)
 	return tiled_text;
 }
 
+UBYTE isPlayerCollidingWithKey(PlayerCharacter *player, Key *key)
+{
+
+	if (debug == 1)
+	{
+		printf("%u %u\n", (UINT16)((player->x - 8) / 8), (UINT16)((player->y - 16) / 8));
+		printf("%u %u\n\n", (UINT16)(key->x), (UINT16)(key->y));
+	}
+
+	if (((player->x - 8) / 8) == key->x && ((player->y - 16) / 8) == key->y)
+	{
+		return 1;
+	}
+
+	return 0;
+}
+
+UINT8 drawKeys(void)
+{
+	UINT8 i;
+	for (i = 0; i < 4; i++)
+	{
+		if (keysOnLevel[i].got == 1)
+		{
+			set_bkg_tiles(keysOnLevel[i].x, keysOnLevel[i].y, 1, 1, blankTile);
+		}
+		else if (keysOnLevel[i].x != 0 && keysOnLevel[i].y != 0)
+		{
+			set_bkg_tiles(keysOnLevel[i].x, keysOnLevel[i].y, 1, 1, keyTile);
+			if (isPlayerCollidingWithKey(&playerCharacter, &keysOnLevel[i]) == 1)
+			{
+				keysOnLevel[i].got = 1;
+				updateKeysInventory(gameManager.inventoryKeys + 1);
+			}
+		}
+	}
+
+	return 0;
+}
+
 UINT8 init(void)
 {
 	// font initialization
@@ -252,8 +301,6 @@ UINT8 init(void)
 UINT8 main(void)
 {
 	init();
-	// TODO: remove this, and make the key work somehow
-	UBYTE hasGotTheDamnKey = 0;
 	gameManager.game_is_running = 1;
 
 	while (gameManager.game_is_running)
@@ -301,28 +348,14 @@ UINT8 main(void)
 				{
 					debug = 1;
 				}
+				waitpadup();
 				break;
 			}
 
 			playerCharacter.nextTileType = checkNextTile(playerCharacter.x + playerCharacter.scrolling_x, playerCharacter.y + playerCharacter.scrolling_y);
 
-			if (debug == 1)
-			{
-				printf("%u %u\n", (UINT16)(playerCharacter.x + playerCharacter.scrolling_x), (UINT16)(playerCharacter.y + playerCharacter.scrolling_y));
-			}
-
 			if (playerCharacter.nextTileType != WALL)
 			{
-				if (playerCharacter.nextTileType == KEY && hasGotTheDamnKey == 0)
-				{
-					// TODO: remove this!
-					hasGotTheDamnKey = 1;
-					playerCharacter.nextTileType = WALL;
-					updateKeysInventory(gameManager.inventoryKeys + 1);
-					playSound();
-					// TODO: improve this calculation
-					set_bkg_tiles(((playerCharacter.x + playerCharacter.scrolling_x) - 8) / 8, (playerCharacter.y + playerCharacter.scrolling_y) / 24, 1, 1, blankTile);
-				}
 
 				// if (gameManager.inventoryKeys <= 0 && playerCharacter.nextTileType == DOOR)
 				// {
@@ -339,6 +372,7 @@ UINT8 main(void)
 				playerCharacter.y += playerCharacter.scrolling_y;
 				interpolateMoveSprite(playerCharacter.sprite_id, playerCharacter.scrolling_x, playerCharacter.scrolling_y, playerCharacter.INTERPOLATION_SPD);
 			}
+			drawKeys();
 		}
 
 		// wait_vbl_done();
